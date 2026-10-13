@@ -10,6 +10,19 @@ storage=module('opbr.storage','storage-browser.py');storage.ROOT=ROOT
 engine=module('opbr.engine','engine.py')
 
 class PublicCatalogTests(unittest.TestCase):
+    def test_character_selection_excludes_special_records(self):
+        d=json.loads((ROOT/'data/bootstrap.json').read_text(encoding='utf-8'))
+        ids={c['id'] for c in d['characters']}
+        expected={i for i,c in self.cat.tables['charas'].items() if c.get('chara_type',0)==0}
+        self.assertEqual(ids,expected)
+        self.assertEqual(len(ids),362)
+        self.assertEqual([c['id'] for c in d['characters'] if c['name']=='King'],[400000696])
+        self.assertGreater(len([c for c in d['characters'] if c['name']=='Monkey D. Luffy']),1)
+        self.assertIn(400000827,ids)
+        for cid in ids:
+            c=self.cat.tables['charas'][cid]
+            for n in (1,2):
+                self.assertNotIn(self.cat.tables['chara_skill'].get(c.get(f'skill{n}_id'),{}).get('name'),(None,'???'))
     def test_sustain_is_separate_from_hp(self):
         hp=engine.config({'preset':'hp','role':'defender'})['weights']
         self.assertEqual(hp,engine.config({'preset':'hp'})['weights'])
