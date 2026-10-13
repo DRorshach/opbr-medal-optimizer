@@ -6,6 +6,7 @@ Calculadora de medalhas de ONE PIECE Bounty Rush, em português, executada no na
 - Calculadora de dois ou três slots, tags e traits adicionais.
 - Busca exaustiva com prioridades configuráveis.
 - Cinco sets salvos para cada um dos 433 registros de personagens, em dois níveis de equipamento, com busca por versão, filtro de classe e justificativas do perfil.
+- Opção de cinco sets somente com medalhas normais, sem eventos. As imagens coloridas também representam as douradas equivalentes. O ranking é recalculado nesse catálogo e não depende da coleção do visitante.
 - Coleção, favoritos e conjuntos salvos somente no navegador de cada visitante.
 
 ## Usar

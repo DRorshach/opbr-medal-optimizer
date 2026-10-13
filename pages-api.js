@@ -21,7 +21,7 @@ window.pagesAPI=(()=>{
   if(route==='state'){localStorage.setItem(key,JSON.stringify(payload));return {ok:true};}
   if(route==='export')return {schema:1,state:read()};
   if(route==='medal'||route==='character')return paths(await json(`data/${route}/${Number(q.get('id'))}.json`));
-  if(route==='character-builds')return paths(await json(`data/builds/${Number(q.get('id'))}-${Number(q.get('slots')||3)}.json`));
+  if(route==='character-builds')return paths(await json(`data/${q.get('pool')==='normal'?'builds-normal':'builds'}/${Number(q.get('id'))}-${Number(q.get('slots')||3)}.json`));
   if(route==='changes')return [];
   if(route==='evaluate')return calculate('evaluate',payload);
   if(route==='optimize'){

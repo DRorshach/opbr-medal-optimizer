@@ -22,12 +22,15 @@ class PublicCatalogTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.cat=engine.Catalog()
     def test_all_character_builds_match_published_engine(self):
-        paths=list((ROOT/'data/builds').glob('*.json'))
-        self.assertEqual(len(paths),len(self.cat.tables['charas'])*2)
+        paths=list((ROOT/'data/builds').glob('*.json'))+list((ROOT/'data/builds-normal').glob('*.json'))
+        self.assertEqual(len(paths),len(self.cat.tables['charas'])*4)
         for path in paths:
             d=json.loads(path.read_text(encoding='utf-8'))
             self.assertEqual(len(d['sets']),5)
             for r in d['sets']:
+                if path.parent.name=='builds-normal':
+                    self.assertEqual(d['pool'],'normal')
+                    self.assertTrue(all(self.cat.kind(self.cat.medals[i])=='normal' for i in r['ids']))
                 actual=engine.evaluate(self.cat,r['ids'],r['config'])
                 self.assertAlmostEqual(actual['score'],r['score'],places=5,msg=path.name)
     def test_public_bootstrap_has_no_personal_state(self):
