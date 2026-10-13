@@ -18,6 +18,8 @@ Exporte sua coleção para manter um backup. Limpar os dados do navegador apaga 
 
 ## Modelo e limitações
 
+Modelo atual: **utility-v2**. Veja [correções de pontuação](SCORING.md). Perfis gerais não priorizam crítico; HP, cura e esquiva são separados, assim como atributos e bônus de combate.
+
 A pontuação é utilidade heurística, não dano final ou chance de vitória. Os efeitos usam fatores condicionais editáveis. Tags dupla/tripla não acumulam entre si. Famílias repetidas são excluídas. Mecânicas de personagens não interpretadas são indicadas nas justificativas; as builds não são recomendações oficiais ou uma simulação completa do jogo.
 
 Os dados foram extraídos de um cache local e não comprovam catálogo completo, disponibilidade atual ou vínculo com uma versão oficial. Descrições originais permanecem em inglês. Imagens e dados do jogo pertencem aos respectivos titulares. Projeto independente, sem afiliação à Bandai Namco.

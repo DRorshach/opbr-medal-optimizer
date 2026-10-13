@@ -27,6 +27,14 @@ class PublicCatalogTests(unittest.TestCase):
         self.assertEqual(len(d['medals']),706)
         for m in d['medals']:
             if m['image']:self.assertTrue((ROOT/m['image'].lstrip('/')).is_file())
+    def test_scoring_v2_categories_and_general_critical(self):
+        self.assertEqual(engine.MODEL,'utility-v2')
+        for name,weights in engine.PRESETS.items():
+            if name!='critico':self.assertEqual(weights.get('critical',0),0,name)
+        for typ,dimension in [(8,'dodge'),(9,'survival'),(200,'hp'),(201,'attack_stat'),(202,'defense_stat'),(204,'speed')]:
+            self.assertEqual(engine.RULES[typ][0],dimension)
+        dodge=engine.normalize({'affect_type':8,'affect_param1':1.13,'detail':'Boost the cooldown reduction speed of dodge by 13%.'},1,'ability',{})
+        self.assertEqual(engine.score_effects([dodge],engine.config({'preset':'hp'}))[0],0)
     def test_no_database_or_machine_paths(self):
         self.assertFalse(list(ROOT.rglob('*.sqlite3')))
         for p in (ROOT/'data').rglob('*.json'):

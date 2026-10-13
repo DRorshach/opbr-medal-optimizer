@@ -7,19 +7,21 @@ import json, math, re, heapq, time
 from collections import Counter, defaultdict
 from .storage import ROOT, load_tables
 
-DIMENSIONS={'attack':'Ataque','defense':'Defesa','survival':'HP e recuperação','capture':'Mobilidade / captura','skill1':'Skill 1','skill2':'Skill 2','critical':'Crítico'}
+MODEL='utility-v2'
+DIMENSIONS={'attack':'Dano causado','defense':'Redução de dano','survival':'Recuperação de HP','hp':'HP máximo','dodge':'Recarga de esquiva','capture':'Captura de tesouro','speed':'Velocidade de movimento','attack_stat':'Atributo ATK','defense_stat':'Atributo DEF','skill1':'Skill 1','skill2':'Skill 2','critical':'Crítico'}
 PRESETS={
- 'equilibrada':dict.fromkeys(DIMENSIONS,1),
- 'runner':dict(attack=.3,defense=1,survival=1.2,capture=2,skill1=.7,skill2=.7,critical=0),
+ 'equilibrada':dict(attack=1,defense=1,survival=1,hp=1,dodge=1,capture=1,speed=1,attack_stat=1,defense_stat=1,skill1=1,skill2=1,critical=0),
+ 'runner':dict(attack=.3,defense=1,survival=1.2,hp=1.2,dodge=1.2,capture=2,speed=2,attack_stat=.3,defense_stat=1,skill1=.7,skill2=.7,critical=0),
  # Generic attacker does not assume character-specific critical synergy.
  # Critical percentages cannot be interpreted as equivalent damage percentages.
- 'attacker':dict(attack=2,defense=.5,survival=.6,capture=.2,skill1=1,skill2=1,critical=0),
- 'defender':dict(attack=.4,defense=2,survival=1.5,capture=.3,skill1=.7,skill2=.7,critical=0),
+ 'attacker':dict(attack=2,defense=.5,survival=.6,hp=.6,dodge=.6,capture=.2,speed=.2,attack_stat=2,defense_stat=.5,skill1=1,skill2=1,critical=0),
+ 'defender':dict(attack=.4,defense=2,survival=1.5,hp=1.5,dodge=1.5,capture=.3,speed=.3,attack_stat=.4,defense_stat=2,skill1=.7,skill2=.7,critical=0),
  'skill1':dict(skill1=3),'skill2':dict(skill2=3),'skills':dict(skill1=2,skill2=2),
- 'dano':dict(attack=3),'reducao':dict(defense=3),'hp':dict(survival=3),
- 'captura':dict(capture=3),'tesouro':dict(defense=2,survival=1,capture=.5),
- 'critico':dict(critical=3),'agressiva':dict(attack=2,critical=1,skill1=1,skill2=1),
- 'sobrevivencia':dict(defense=2,survival=2),'personalizada':dict.fromkeys(DIMENSIONS,1)}
+ 'dano':dict(attack=3),'reducao':dict(defense=3),'hp':dict(survival=3,hp=3),
+ 'captura':dict(capture=3),'tesouro':dict(defense=2,survival=1,hp=1,dodge=1,capture=.5),
+ 'critico':dict(critical=3),'agressiva':dict(attack=2,skill1=1,skill2=1,critical=0),
+ 'sobrevivencia':dict(defense=2,survival=2,hp=2,dodge=2),'personalizada':dict(attack=1,defense=1,survival=1,hp=1,dodge=1,capture=1,speed=1,attack_stat=1,defense_stat=1,skill1=1,skill2=1,critical=0)}
+PRESETS.update(cura=dict(survival=3),esquiva=dict(dodge=3),movimento=dict(speed=3))
 # Each mapping is checked against the English description and serialized value.
 RULES={
  1:('skill1','Reduce the cooldown time of Skill 1 by',1,'event'),
@@ -28,14 +30,14 @@ RULES={
  5:('defense','Reduce damage received by',-1,'conditional'),
  6:('skill1','Boost the cooldown reduction speed of Skill 1 by',1,'conditional'),
  7:('skill2','Boost the cooldown reduction speed of Skill 2 by',1,'conditional'),
- 8:('survival','Boost the cooldown reduction speed of dodge by',1,'conditional'),
+ 8:('dodge','Boost the cooldown reduction speed of dodge by',1,'conditional'),
  9:('survival','Recover HP by',1,'event'),
  10:('capture','Boost capture speed by',1,'conditional'),
- 200:('survival','Increase HP by',1,'conditional'),
- 201:('attack','Increase ATK by',1,'conditional'),
- 202:('defense','Increase DEF by',1,'conditional'),
+ 200:('hp','Increase HP by',1,'conditional'),
+ 201:('attack_stat','Increase ATK by',1,'conditional'),
+ 202:('defense_stat','Increase DEF by',1,'conditional'),
  203:('critical','Increase CRIT by',1,'conditional'),
- 204:('capture','Increase SPD by',1,'conditional'),
+ 204:('speed','Increase SPD by',1,'conditional'),
  679:('attack','Increase Normal Attack damage dealt by',1,'conditional')}
 
 def condition_key(a):
@@ -57,7 +59,7 @@ def normalize(a, aid, source, limits, channel='affect'):
     elif typ==601:
         match=re.search(r'(CRIT|SPD|ATK|DEF): Boosted by ([\d.]+)% for ([\d.]+) second',text)
         if match and 'Cannot Stack' in text:
-            dim={'CRIT':'critical','SPD':'capture','ATK':'attack','DEF':'defense'}[match[1]]
+            dim={'CRIT':'critical','SPD':'speed','ATK':'attack_stat','DEF':'defense_stat'}[match[1]]
             e.update(supported=True,dimension=dim,value=float(match[2]),cap=float(match[2]),unit='percent',kind='temporary',duration=float(match[3]),key=f'601:{param}')
     if e['supported'] and e['kind']=='conditional' and a.get('cond_type',0)==0:
         # Absence alone is insufficient: only recognized affirmative descriptions.
@@ -125,6 +127,10 @@ def config(raw):
 def factor(e,cfg):
     if e['kind']=='permanent':return e['probability']
     default=cfg['event'] if e['kind']=='event' else cfg['activation']
+    # Character/status synergies require an explicit scenario, not generic uptime.
+    text=e['description'].lower()
+    if 'when critical occurs' in text:default=0
+    if 'when an enemy is inflicted with' in text:default=0
     return cfg['conditions'].get(e['condition'],default)*e['probability']
 
 def effects_for_set(cat,ids,traits=None):
@@ -185,14 +191,15 @@ def evaluate(cat,ids,raw,traits=None):
     if hp_high and hp_low and max(hp_high)>min(hp_low):weak.append('Conflito de HP: parte dos efeitos requer HP alto e outra parte HP baixo. A pontuação é utilidade de cenários, não bônus simultâneo.')
     if any(g['redundancy']>0 for g in groups):weak.append('Há contribuição excedente aos limites utilizados no modelo; consulte a decomposição.')
     if not traits:weak.append('Traits adicionais não foram selecionados e não contribuem para esta avaliação.')
+    if any(e['supported'] and factor(e,cfg)==0 and e['kind']!='permanent' for e in effects):weak.append('Há condições sem peso neste cenário. Gatilhos de crítico e aplicação de status exigem contexto; podem ser ajustados em Condições e hipóteses.')
     tag_score=score_effects([e for e in effects if e['source']=='tag'],cfg)[0]
     consistency=sum(factor(e,cfg) for e in supported)/len(supported) if supported else 0
-    return {'ids':ids,'medals':[cat.public_medal(cat.medals[i]) for i in ids],'score':round(total,6),'scores':{k:round(v,6) for k,v in scores.items()},'tag_score':round(tag_score,6),'consistency':round(consistency,4),'tags':tags,'effects':effects,'groups':groups,'strengths':strengths,'weaknesses':weak,'coverage':{'supported':len(supported),'total':len(effects)},'explanation':f"{len(tags)} tags ativadas; {len(supported)}/{len(effects)} efeitos interpretados. A ordem usa os pesos escolhidos e fatores de ativação, com limites por tipo. Não representa dano, recarga final nem taxa de vitória.",'model':'utility-v1','config':cfg}
+    return {'ids':ids,'medals':[cat.public_medal(cat.medals[i]) for i in ids],'score':round(total,6),'scores':{k:round(v,6) for k,v in scores.items()},'tag_score':round(tag_score,6),'consistency':round(consistency,4),'tags':tags,'effects':effects,'groups':groups,'strengths':strengths,'weaknesses':weak,'coverage':{'supported':len(supported),'total':len(effects)},'explanation':f"{len(tags)} tags ativadas; {len(supported)}/{len(effects)} efeitos interpretados. A ordem usa os pesos escolhidos e fatores de ativação, com limites por tipo. Não representa dano, recarga final nem taxa de vitória.",'model':MODEL,'config':cfg}
 
 def optimize(cat,raw,owned=(),progress=None,cancel=None):
     """Enumerate every eligible distinct-family pair/triple in bounded NumPy chunks.
 
-    Exact only relative to utility-v1. No preselection by popularity or individual score.
+    Exact only relative to utility-v2. No preselection by popularity or individual score.
     Equivalent variants within the same family collapse when tags and unique effects
     are identical (additional traits are not part of automatic ranking).
     """
@@ -245,7 +252,12 @@ def optimize(cat,raw,owned=(),progress=None,cancel=None):
         vals=matrix[combos].sum(axis=1)
         if temporary.any():vals[:,temporary]=matrix[combos][:,:,temporary].max(axis=1)
         # Tags have one active tier, never tier 2 + tier 3 together.
-        vals += (counts==2)@t2 + (counts>=3)@t3
+        tagvals=(counts==2)@t2 + (counts>=3)@t3
+        vals[:,~temporary] += tagvals[:,~temporary]
+        # Non-stackable channels must also use max across tags and unique effects.
+        for col in np.flatnonzero(temporary & ((t2!=0).any(axis=0) | (t3!=0).any(axis=0))):
+            tv=np.where(counts==2,t2[:,col],np.where(counts>=3,t3[:,col],0)).max(axis=1) if len(tids) else 0
+            vals[:,col]=np.maximum(vals[:,col],tv)
         score=np.minimum(vals,caps)@weights
         evaluated+=len(combos)
         # Stable ties: smaller IDs win. Do not truncate ties via argpartition.
@@ -267,4 +279,4 @@ def optimize(cat,raw,owned=(),progress=None,cancel=None):
     results=[evaluate(cat,list(entry[2]),raw) for entry in sorted(heap,reverse=True)]
     for r in results:
         r['alternatives']={str(mid):cat.variants.get(mid,[mid]) for mid in r['ids']}
-    return {'results':results,'evaluated':evaluated,'eligible':len(candidates),'representatives':n,'seconds':round(time.monotonic()-start,2),'complete':True,'scope':'Famílias distintas; variantes equivalentes agrupadas; traits adicionais fora do ranking automático.','model':'utility-v1'}
+    return {'results':results,'evaluated':evaluated,'eligible':len(candidates),'representatives':n,'seconds':round(time.monotonic()-start,2),'complete':True,'scope':'Famílias distintas; variantes equivalentes agrupadas; traits adicionais fora do ranking automático.','model':MODEL}
