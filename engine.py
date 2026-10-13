@@ -22,6 +22,11 @@ PRESETS={
  'critico':dict(critical=3),'agressiva':dict(attack=2,skill1=1,skill2=1,critical=0),
  'sobrevivencia':dict(defense=2,survival=2,hp=2,dodge=2),'personalizada':dict(attack=1,defense=1,survival=1,hp=1,dodge=1,capture=1,speed=1,attack_stat=1,defense_stat=1,skill1=1,skill2=1,critical=0)}
 PRESETS.update(cura=dict(survival=3),esquiva=dict(dodge=3),movimento=dict(speed=3))
+# A sustain build retains the class's combat tools; it is not an HP-only sort.
+ROLE_PRESETS={role:{'sustentacao':dict(weights,survival=3,hp=1,dodge=.3)} for role,weights in PRESETS.items() if role in ('runner','attacker','defender')}
+
+def preset_weights(preset,role=None):
+    return ROLE_PRESETS.get(role or 'defender',{}).get(preset,PRESETS.get(preset,PRESETS['equilibrada']))
 # Each mapping is checked against the English description and serialized value.
 RULES={
  1:('skill1','Reduce the cooldown time of Skill 1 by',1,'event'),
@@ -119,7 +124,8 @@ class Catalog:
         return sorted(result,key=lambda m:m['medal_id'])
 
 def config(raw):
-    out={'weights':{k:float(raw.get('weights',PRESETS.get(raw.get('preset','equilibrada'),PRESETS['equilibrada'])).get(k,0)) for k in DIMENSIONS},'activation':float(raw.get('activation',.5)),'event':float(raw.get('event',.25)),'conditions':{str(k):float(v) for k,v in raw.get('conditions',{}).items()}}
+    out={'weights':{k:float(raw.get('weights',preset_weights(raw.get('preset','equilibrada'),raw.get('role'))).get(k,0)) for k in DIMENSIONS},'activation':float(raw.get('activation',.5)),'event':float(raw.get('event',.25)),'conditions':{str(k):float(v) for k,v in raw.get('conditions',{}).items()}}
+    out['preset']=raw.get('preset','personalizada');out['role']=raw.get('role')
     if any(not math.isfinite(x) or not 0<=x<=10 for x in out['weights'].values()):raise ValueError('Pesos devem estar entre 0 e 10')
     if any(not math.isfinite(x) or not 0<=x<=1 for x in [out['activation'],out['event'],*out['conditions'].values()]):raise ValueError('Fatores de ativação devem estar entre 0 e 1')
     return out
@@ -131,6 +137,8 @@ def factor(e,cfg):
     text=e['description'].lower()
     if 'when critical occurs' in text:default=0
     if 'when an enemy is inflicted with' in text:default=0
+    if cfg.get('preset')=='sustentacao' and cfg.get('role')=='defender':
+        if 'when you capture' in text or 'enemy\'s treasure' in text:default=0
     return cfg['conditions'].get(e['condition'],default)*e['probability']
 
 def effects_for_set(cat,ids,traits=None):

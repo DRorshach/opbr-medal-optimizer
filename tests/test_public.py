@@ -10,6 +10,15 @@ storage=module('opbr.storage','storage-browser.py');storage.ROOT=ROOT
 engine=module('opbr.engine','engine.py')
 
 class PublicCatalogTests(unittest.TestCase):
+    def test_sustain_is_separate_from_hp(self):
+        hp=engine.config({'preset':'hp','role':'defender'})['weights']
+        self.assertEqual(hp,engine.config({'preset':'hp'})['weights'])
+        self.assertEqual(hp['defense'],0)
+        sustain=engine.config({'preset':'sustentacao','role':'defender'})['weights']
+        self.assertGreater(sustain['defense'],0)
+        self.assertGreater(sustain['skill1'],0)
+        bootstrap=json.loads((ROOT/'data/bootstrap.json').read_text(encoding='utf-8'))
+        self.assertEqual(bootstrap['role_presets']['defender']['sustentacao'],engine.ROLE_PRESETS['defender']['sustentacao'])
     @classmethod
     def setUpClass(cls):cls.cat=engine.Catalog()
     def test_all_character_builds_match_published_engine(self):
