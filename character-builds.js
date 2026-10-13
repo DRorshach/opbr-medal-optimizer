@@ -1,35 +1,36 @@
 'use strict';
-const showCharacterTraits=characterDetail;
-let characterRequest=0,characterBuildSlots=3;
+let characterRequest=0,characterBuildSlots=3,selectedCharacter=null;
+const roleLabel={attacker:'Attacker',defender:'Defender',runner:'Runner',equilibrada:'Equilibrado',unknown:'Sem classe'};
+characters=function(){
+ main.innerHTML=pageHead('ENCONTRE SUA COMBINAÇÃO','Character Builds','Cinco sets por personagem, orientados pela classe e pelos traits reconhecidos.')+`<div class="builds-workspace"><aside class="character-browser panel"><label>Buscar personagem ou versão<input type="search" id="char-search" placeholder="Ex.: Zoro, Sanji, Kaido…"></label><label>Classe<select id="char-role"><option value="">Todas as classes</option>${['attacker','defender','runner'].map(r=>option(r,roleLabel[r])).join('')}</select></label><p id="char-count" class="original-note" aria-live="polite"></p><div id="char-list" class="character-list"></div></aside><section id="character-recommendations" aria-live="polite"><div class="character-welcome panel"><span class="eyebrow">SEU PERSONAGEM, SUA BUILD</span><h2>Quem vai entrar na batalha?</h2><p>Escolha um personagem e sua versão na lista para explorar cinco combinações de medalhas.</p><div class="welcome-steps"><span>01 · Escolha o personagem</span><span>02 · Compare os cinco sets</span><span>03 · Ajuste na calculadora</span></div><small>As recomendações consideram as regras de traits que o modelo reconhece. Você verá o que foi considerado em cada perfil.</small></div></section></div>`;
+ const render=()=>{
+  const q=$('#char-search').value.toLocaleLowerCase(),role=$('#char-role').value;
+  const chars=data.characters.filter(c=>(c.name+' '+c.nickname).toLocaleLowerCase().includes(q)&&(!role||c.role===role));
+  $('#char-count').textContent=`${chars.length} personagens e versões`;
+  $('#char-list').innerHTML=chars.map(c=>`<button class="char-row ${selectedCharacter===c.id?'selected':''}" data-character="${c.id}" aria-pressed="${selectedCharacter===c.id}">${c.image?picture(c):'<span class="char-avatar">?</span>'}<span><strong>${esc(c.name)}</strong><small>${esc(c.nickname)}</small><span class="badge subtle">${esc(roleLabel[c.role]||c.role)}</span></span></button>`).join('')||'<p class="empty">Nenhum personagem encontrado. Tente outro nome ou classe.</p>';
+  $$('[data-character]').forEach(el=>el.onclick=()=>characterDetail(+el.dataset.character));
+ };
+ $('#char-search').oninput=render;$('#char-role').onchange=render;render();
+ if(selectedCharacter)characterDetail(selectedCharacter);
+};
+function characterSetCard(r,i){
+ const metrics=Object.entries(r.scores).filter(([k,v])=>v>0&&(r.config.weights[k]||0)>0).sort((a,b)=>b[1]*(r.config.weights[b[0]]||0)-a[1]*(r.config.weights[a[0]]||0)).slice(0,4);
+ return `<article class="character-set ${i===0?'featured':''}"><div class="build-card-top"><span class="build-number">0${i+1}</span><div><h3>${i===0?'Maior pontuação do perfil':`Alternativa ${i}`}</h3><small>${r.tags.length} tags ativadas · ${r.ids.length} medalhas</small></div><div class="build-score">${fmt(r.score)}<small>pontos estimados</small></div></div><div class="build-medals">${r.medals.map(m=>`<button class="build-medal" data-build-medal="${m.id}">${picture(m)}<span>${esc(m.name)}</span></button>`).join('')}</div><div class="build-tags">${r.tags.map(t=>`<span class="tag">${esc(t.name)} <b>×${t.count}</b></span>`).join('')}</div><div class="build-metrics">${metrics.map(([k,v])=>`<span>${esc(data.dimensions[k])}<b>${fmt(v)}</b></span>`).join('')}</div><details><summary>Entender este set</summary><p class="original-note">Valores ajustados pelas condições do perfil. A pontuação é uma soma ponderada, sem limite de 100; não representa percentual final de bônus.</p>${r.strengths.map(x=>`<p>${esc(x)}</p>`).join('')}<h4>Efeitos únicos e tags</h4>${r.effects.map(e=>`<div class="build-effect"><span>${esc(e.label||'Efeito')}</span><p>${esc(e.description)}</p>${!e.supported?'<small>Não interpretado na pontuação</small>':''}</div>`).join('')}</details><div class="build-actions"><button class="primary" data-build-open="${i}">Usar na calculadora ↗</button><button data-build-save="${i}">Salvar set</button></div></article>`;
+}
 characterDetail=async function(id){
- const request=++characterRequest;
- const previous=$('#character-recommendations');
- if(previous)previous.innerHTML='<div class="panel">Carregando sugestões…</div>';
- await showCharacterTraits(id);
- if(request!==characterRequest||page!=='characters')return;
- let section=$('#character-recommendations');
- if(!section){section=document.createElement('section');section.id='character-recommendations';$('.two-col',main).before(section);}
- section.innerHTML='<div class="panel">Carregando sugestões salvas…</div>';
+ const request=++characterRequest;selectedCharacter=id;
+ $$('[data-character]').forEach(el=>{const active=+el.dataset.character===id;el.classList.toggle('selected',active);el.setAttribute('aria-pressed',active);});
+ const section=$('#character-recommendations');if(!section)return;
+ section.innerHTML='<div class="panel character-loading">Carregando perfil e cinco sets…</div>';
  try{
-  const build=await api(`character-builds?id=${id}&slots=${characterBuildSlots}`);
+  const [build,original]=await Promise.all([api(`character-builds?id=${id}&slots=${characterBuildSlots}`),api(`character?id=${id}`)]);
   if(request!==characterRequest||page!=='characters')return;
-  const p=build.profile;
-  section.innerHTML=`<section class="panel" style="margin-bottom:22px"><div class="eyebrow">TRÊS SUGESTÕES · SALVAS POR PERSONAGEM</div><div class="section-head"><div><h2>${esc(p.name)} · ${esc(p.nickname)}</h2><p class="muted">${esc(p.confidence)}</p></div><label>Nível da build<select id="character-build-level">${option(2,'80 · duas medalhas',characterBuildSlots)+option(3,'100 · três medalhas',characterBuildSlots)}</select></label></div><p>Perfil da classe ajustado por regras reconhecidas nos traits. Não é necessário configurar prioridades para usar estas sugestões.</p><div class="notice">Sugestões calculadas, não builds oficialmente validadas. ${p.traits_matched} de ${p.traits_read} descrições participaram das regras; as demais mecânicas não foram simuladas.</div>${p.stat_advice.map(x=>`<div class="effect"><strong>Traits adicionais</strong><p>${esc(x)}</p></div>`).join('')}<details><summary>Por que este perfil foi escolhido?</summary>${p.reasons.map(r=>`<div class="effect"><p>${esc(r.reason)}</p>${r.evidence.map(e=>`<small>Ability ${e.ability_id}: ${esc(e.text)}</small><br>`).join('')}</div>`).join('')||'<p>Sem regra específica reconhecida. Usa apenas a classe; precisa de revisão.</p>'}<h3>Limitações</h3><ul>${p.limitations.map(x=>`<li>${esc(x)}</li>`).join('')}</ul><details><summary>Traits não utilizados e parâmetros</summary><pre>${esc(JSON.stringify({unmodeled:p.unmodeled,config:p.config,source:p.source},null,2))}</pre></details></details><p class="original-note">${build.generated_at?`Gerado em ${esc(build.generated_at)} · ${fmt(build.evaluated)} combinações por perfil · ${esc(build.version)}`:'Ainda não calculado.'}</p><button id="rebuild-characters">Recalcular todos os personagens</button><div id="character-build-progress"></div></section>${build.status==='stale'?'<div class="notice">Catálogo ou regras alterados. Recalcule as sugestões.</div>':''}<div class="character-build-cards">${build.status==='ready'?build.sets.map((r,i)=>resultCard(r,i)).join(''):'<div class="empty">Sugestões pendentes. Use Recalcular.</div>'}</div>`;
+  const p=build.profile,brief=data.characters.find(c=>c.id===id);
+  const priorities=Object.entries(p.config.weights).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  section.innerHTML=`<div class="character-profile panel"><div class="character-identity">${brief.image?picture(brief):''}<div><span class="eyebrow">${esc(roleLabel[p.role]||p.role)} · PERFIL DO PERSONAGEM</span><h2>${esc(p.name)}</h2><p>${esc(p.nickname)}</p></div></div><div class="character-focus"><span>Prioridades do perfil</span>${priorities.map(([k])=>`<span class="tag">${esc(data.dimensions[k])}</span>`).join('')}</div><p class="original-note">${p.traits_matched} de ${p.traits_read} descrições de traits reconhecidas pelas regras. ${p.reasons.length?'As recomendações combinam essas regras com a classe.':'Este perfil usa apenas a classe; confira se combina com seu personagem.'}</p>${p.stat_advice.map(x=>`<p class="notice">${esc(x)}</p>`).join('')}<details class="profile-details"><summary>Características consideradas e habilidades</summary>${p.reasons.map(r=>`<div class="build-reason"><p>${esc(r.reason)}</p><details><summary>Ver trait original</summary>${r.evidence.map(e=>`<p class="original-note">${esc(e.text)}</p>`).join('')}</details></div>`).join('')||'<p>Nenhuma regra específica reconhecida nos traits.</p>'}<h3>Skills do personagem</h3>${original.skills.map((s,i)=>`<details><summary>Skill ${i+1} · ${esc(s.name||'Sem nome')}</summary><p>${esc(s.detail||'Descrição não disponível')}</p></details>`).join('')}<details><summary>Todos os traits originais</summary>${original.abilities.map(a=>a.effects.map(e=>`<p>${esc(e.description)}</p>`).join('')).join('')}</details><details><summary>Limitações e origem dos dados</summary><ul>${p.limitations.map(x=>`<li>${esc(x)}</li>`).join('')}</ul><p class="original-note">Atualizado em ${esc(build.generated_at||'—')} · ${esc(build.version||'')}</p><pre>${esc(JSON.stringify({source:p.source,unmodeled:p.unmodeled},null,2))}</pre></details></details></div><div class="builds-heading"><div><span class="eyebrow">COMBINAÇÕES PARA VOCÊ</span><h2>5 sets recomendados</h2><p>Compare as tags e os efeitos antes de escolher.</p></div><label>Nível do personagem<select id="character-build-level">${option(2,'80 · 2 medalhas',characterBuildSlots)+option(3,'100 · 3 medalhas',characterBuildSlots)}</select></label></div><p class="builds-caption">Ordem por utilidade estimada para este perfil. Os sets podem compartilhar medalhas e não presumem traits adicionais equipados.</p><div class="character-build-cards">${build.status==='ready'?build.sets.map(characterSetCard).join(''):'<div class="notice">As recomendações estão sendo atualizadas. Volte em instantes.</div>'}</div>`;
   $('#character-build-level').onchange=()=>{characterBuildSlots=+$('#character-build-level').value;characterDetail(id);};
-  const switchCharacter=document.createElement('button');
-  switchCharacter.textContent='Trocar personagem';
-  switchCharacter.onclick=()=>{$('#char-search').scrollIntoView({block:'center'});$('#char-search').focus();};
-  $('.section-head',section).append(switchCharacter);
-  $('#rebuild-characters').hidden=true;$('#rebuild-characters').onclick=async()=>{
-   try{const task=await api('character-builds/regenerate',{});$('#rebuild-characters').disabled=true;
-    const poll=async()=>{try{const j=await api('job?id='+task.id);const status=$('#character-build-progress');if(status)status.textContent=j.status==='running'?`Calculando ${j.slots||2} slots · ${fmt(j.evaluated||0)} conjuntos…`:j.error||'Atualizado.';if(j.status==='running')setTimeout(poll,1500);else if(page==='characters')characterDetail(id);}catch(e){toast(e.message);}};poll();
-   }catch(e){toast(e.message);}
-  };
-  $$('.character-build-cards .result',section).forEach((el,i)=>{
-   const r=build.sets[i];
-   $('[data-load-set]',el).onclick=()=>{slots=[...r.ids];if(slots.length===2)slots.push(null);traits={};state.settings={...settings(),...r.config,slots:r.ids.length};persist();location.hash='calculator';};
-   $('[data-save-set]',el).onclick=async()=>{state.saved_sets.push({name:`${p.name} — ${p.nickname} · sugestão ${i+1}`,ids:r.ids,traits:{},config:r.config,character_id:id});await persist();toast('Conjunto salvo com o perfil do personagem.');};
-   $('[data-compare-set]',el).remove();
-  });
- }catch(e){if(request===characterRequest)section.innerHTML=`<div class="notice">${esc(e.message)}</div>`;}
+  $$('[data-build-medal]',section).forEach(el=>el.onclick=()=>showMedal(+el.dataset.buildMedal).catch(e=>toast(e.message)));
+  $$('[data-build-open]',section).forEach(el=>el.onclick=()=>{const r=build.sets[+el.dataset.buildOpen];slots=[...r.ids];if(slots.length===2)slots.push(null);traits={};state.settings={...settings(),...r.config,role:p.role,slots:r.ids.length};persist();location.hash='calculator';});
+  $$('[data-build-save]',section).forEach(el=>el.onclick=async()=>{const i=+el.dataset.buildSave,r=build.sets[i];state.saved_sets.push({name:`${p.name} — ${p.nickname} · sugestão ${i+1}`,ids:r.ids,traits:{},config:r.config,character_id:id});await persist();toast('Set salvo com o perfil do personagem.');});
+ }catch(e){if(request===characterRequest&&page==='characters')section.innerHTML=`<div class="notice">Não foi possível carregar as recomendações: ${esc(e.message)}</div><button id="character-retry">Tentar novamente</button>`;if($('#character-retry'))$('#character-retry').onclick=()=>characterDetail(id);}
 };

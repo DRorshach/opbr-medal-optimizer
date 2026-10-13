@@ -26,7 +26,7 @@ class PublicCatalogTests(unittest.TestCase):
         self.assertEqual(len(paths),len(self.cat.tables['charas'])*2)
         for path in paths:
             d=json.loads(path.read_text(encoding='utf-8'))
-            self.assertEqual(len(d['sets']),3)
+            self.assertEqual(len(d['sets']),5)
             for r in d['sets']:
                 actual=engine.evaluate(self.cat,r['ids'],r['config'])
                 self.assertAlmostEqual(actual['score'],r['score'],places=5,msg=path.name)

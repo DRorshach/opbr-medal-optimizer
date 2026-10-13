@@ -5,7 +5,7 @@ window.pagesAPI=(()=>{
  let worker=null,seq=0;const pending=new Map(),jobs=new Map();
  const empty=()=>({owned:[],favorites:[],saved_sets:[],settings:{}});
  function read(){try{return {...empty(),...JSON.parse(localStorage.getItem(key)||'{}')};}catch{return empty();}}
- async function json(path){const r=await fetch(new URL(path,base));if(!r.ok)throw Error('Não foi possível carregar o catálogo. Recarregue a página.');return r.json();}
+ async function json(path){const r=await fetch(new URL(path,base),{cache:'no-cache'});if(!r.ok)throw Error('Não foi possível carregar o catálogo. Recarregue a página.');return r.json();}
  function paths(x){if(Array.isArray(x))return x.map(paths);if(x&&typeof x==='object'){for(const k in x)x[k]=paths(x[k]);return x;}return typeof x==='string'&&x.startsWith('/images/')?new URL(x.slice(1),base).href:x;}
  function reset(){worker?.terminate();worker=null;for(const p of pending.values())p.reject(Error('Cálculo cancelado.'));pending.clear();}
  function calculate(action,payload,progress){
