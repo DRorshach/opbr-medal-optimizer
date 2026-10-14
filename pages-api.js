@@ -9,7 +9,7 @@ window.pagesAPI=(()=>{
  function paths(x){if(Array.isArray(x))return x.map(paths);if(x&&typeof x==='object'){for(const k in x)x[k]=paths(x[k]);return x;}return typeof x==='string'&&x.startsWith('/images/')?new URL(x.slice(1),base).href:x;}
  function reset(){worker?.terminate();worker=null;for(const p of pending.values())p.reject(Error('Cálculo cancelado.'));pending.clear();}
  function calculate(action,payload,progress){
-  if(!worker){worker=new Worker(new URL('pages-worker.mjs',base),{type:'module'});
+  if(!worker){worker=new Worker(new URL('pages-worker.mjs?v=utility-v3-defender',base),{type:'module'});
    worker.onmessage=({data:m})=>{const p=pending.get(m.id);if(!p)return;if(m.progress){p.progress?.(m.progress);return;}pending.delete(m.id);if(m.error)p.reject(Error(m.error));else p.resolve(paths(m.result));};
    worker.onerror=()=>reset();
   }

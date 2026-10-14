@@ -5,7 +5,7 @@ async function initialize(){
  const py=await loadPyodide();
  py.FS.mkdirTree('/app/opbr');py.FS.mkdirTree('/app/data');
  for(const [url,path] of [['engine.py','/app/opbr/engine.py'],['storage-browser.py','/app/opbr/storage.py'],['data/tables.json','/app/data/tables.json'],['data/image_sources.json','/app/data/image_sources.json']]){
-  const r=await fetch(new URL(url,import.meta.url));if(!r.ok)throw Error('Falha ao carregar '+url);
+  const r=await fetch(new URL(url,import.meta.url),{cache:'no-cache'});if(!r.ok)throw Error('Falha ao carregar '+url);
   py.FS.writeFile(path,new Uint8Array(await r.arrayBuffer()));
  }
  py.FS.writeFile('/app/opbr/__init__.py','');

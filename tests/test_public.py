@@ -53,7 +53,7 @@ class PublicCatalogTests(unittest.TestCase):
         for m in d['medals']:
             if m['image']:self.assertTrue((ROOT/m['image'].lstrip('/')).is_file())
     def test_scoring_v2_categories_and_general_critical(self):
-        self.assertEqual(engine.MODEL,'utility-v2')
+        self.assertEqual(engine.MODEL,'utility-v3-defender')
         for name,weights in engine.PRESETS.items():
             if name!='critico':self.assertEqual(weights.get('critical',0),0,name)
         for typ,dimension in [(8,'dodge'),(9,'survival'),(200,'hp'),(201,'attack_stat'),(202,'defense_stat'),(204,'speed')]:

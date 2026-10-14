@@ -7,7 +7,7 @@ import json, math, re, heapq, time
 from collections import Counter, defaultdict
 from .storage import ROOT, load_tables
 
-MODEL='utility-v2'
+MODEL='utility-v3-defender'
 DIMENSIONS={'attack':'Dano causado','defense':'Redução de dano','survival':'Recuperação de HP','hp':'HP máximo','dodge':'Recarga de esquiva','capture':'Captura de tesouro','speed':'Velocidade de movimento','attack_stat':'Atributo ATK','defense_stat':'Atributo DEF','skill1':'Skill 1','skill2':'Skill 2','critical':'Crítico'}
 PRESETS={
  'equilibrada':dict(attack=1,defense=1,survival=1,hp=1,dodge=1,capture=1,speed=1,attack_stat=1,defense_stat=1,skill1=1,skill2=1,critical=0),
@@ -15,7 +15,7 @@ PRESETS={
  # Generic attacker does not assume character-specific critical synergy.
  # Critical percentages cannot be interpreted as equivalent damage percentages.
  'attacker':dict(attack=2,defense=.5,survival=.6,hp=.6,dodge=.6,capture=.2,speed=.2,attack_stat=2,defense_stat=.5,skill1=1,skill2=1,critical=0),
- 'defender':dict(attack=.4,defense=2,survival=1.5,hp=1.5,dodge=1.5,capture=.3,speed=.3,attack_stat=.4,defense_stat=2,skill1=.7,skill2=.7,critical=0),
+ 'defender':dict(attack=.4,defense=3,survival=2,hp=.8,dodge=.4,capture=0,speed=.1,attack_stat=.4,defense_stat=1,skill1=1,skill2=1,critical=0),
  'skill1':dict(skill1=3),'skill2':dict(skill2=3),'skills':dict(skill1=2,skill2=2),
  'dano':dict(attack=3),'reducao':dict(defense=3),'hp':dict(survival=3,hp=3),
  'captura':dict(capture=3),'tesouro':dict(defense=2,survival=1,hp=1,dodge=1,capture=.5),
@@ -135,6 +135,13 @@ def factor(e,cfg):
     default=cfg['event'] if e['kind']=='event' else cfg['activation']
     # Character/status synergies require an explicit scenario, not generic uptime.
     text=e['description'].lower()
+    if cfg.get('preset')=='defender':
+        if ('when your allies are not near the treasure area where you are at' in text
+            or 'when in the area around your captured treasure' in text):default=1
+        if ('when your allies are near the treasure area where you are at' in text
+            or "enemy's treasure" in text or 'when you capture' in text):default=0
+        # Status-dependent protection needs explicit character/scenario evidence.
+        if 'enemy inflicted with' in text:default=0
     if 'when critical occurs' in text:default=0
     if 'when an enemy is inflicted with' in text:default=0
     if cfg.get('preset')=='sustentacao' and cfg.get('role')=='defender':
